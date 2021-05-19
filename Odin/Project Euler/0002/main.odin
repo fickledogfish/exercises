@@ -12,7 +12,6 @@ package main
 
 import "core:fmt"
 import "core:testing"
-import "core:slice"
 
 sum_even_fibs :: proc(cap: u64) -> (sum: u64) {
 	for a, b := u64(1), u64(2); b < cap; {
@@ -26,6 +25,21 @@ sum_even_fibs :: proc(cap: u64) -> (sum: u64) {
 	return;
 }
 
+CAP :: 4000000;
+
 main :: proc() {
-	fmt.println(sum_even_fibs(4000000)); // 4613732
+	fmt.println(sum_even_fibs(CAP));
+}
+
+@(test)
+test_answer :: proc(t: ^testing.T) {
+	answer :: 4613732;
+
+	sum := sum_even_fibs(CAP);
+
+	testing.expect(t, sum == answer, fmt.tprintf(
+		"Incorrect answer, got sum_even_fibs(%d) = %d",
+		CAP,
+		sum,
+	));
 }

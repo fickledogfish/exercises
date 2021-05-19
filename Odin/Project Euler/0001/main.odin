@@ -5,8 +5,6 @@ If we list all the natural numbers below 10 that are multiples of 3 or 5, we
 get 3, 5, 6 and 9. The sum of these multiples is 23.
 
 Find the sum of all the multiples of 3 or 5 below 1000.
-
-Answer: 
 */
 
 package main
@@ -60,11 +58,30 @@ test_find_multiples_of :: proc(t: ^testing.T) {
 	));
 }
 
+DIVISORS :: []int{3, 5};
+CAP :: 1000;
+
 main :: proc() {
-	muls := find_multiples_of({3, 5}, 1000);
+	muls := find_multiples_of(DIVISORS, CAP);
 	defer delete(muls);
 
 	sum := math.sum(muls[:]);
 
-	fmt.println(sum); // 233168
+	fmt.println(sum);
+}
+
+@(test)
+test_answer :: proc(t: ^testing.T) {
+	answer :: 233168;
+
+	muls := find_multiples_of(DIVISORS, CAP);
+	defer delete(muls);
+	sum := math.sum(muls[:]);
+
+	testing.expect(t, sum == answer, fmt.tprintf(
+		"Incorrect answer, got find_mutiples_of(%v, %d) = %d",
+		DIVISORS,
+		CAP,
+		sum,
+	));
 }
