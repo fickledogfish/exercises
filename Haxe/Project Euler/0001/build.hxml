@@ -1,0 +1,3 @@
+--main Main
+-p src
+--jvm main.jar
