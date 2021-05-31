@@ -4,6 +4,23 @@ import "core:fmt"
 import "core:math/rand"
 import "core:time"
 
+USE_COLORS :: true;
+
+color :: proc(c: enum{Red, Green, Blue, Clear}, s: string) -> string {
+	if (!USE_COLORS || c == .Clear) do return s;
+
+	color_string := "";
+
+	#partial switch c {
+	case .Red:   color_string = "\x1b[31m";
+	case .Green: color_string = "\x1b[32m";
+	case .Blue:  color_string = "\x1b[34m";
+	}
+
+	// Also add the clear ANSI code
+	return fmt.aprintf("%s%s\x1b[0m", color_string, s);
+}
+
 main :: proc() {
 	rng := rand.create(u64(time.time_to_unix_nano(time.now())));
 
@@ -14,6 +31,10 @@ main :: proc() {
 				attack = {20, 50},
 			},
 			count = {2, 5},
+			weapons = []Weapon {
+				{ "claws", { 10, 30 } },
+				{ "tail", { 30, 50 } },
+			},
 		}, &rng),
 		new_army("human", "humans", Army_Statistics {
 			c = {
@@ -21,6 +42,10 @@ main :: proc() {
 				attack = {10, 20},
 			},
 			count = {100, 500},
+			weapons = []Weapon {
+				{ "pitchfork", {5, 20} },
+				{ "sword", {10, 30} },
+			},
 		}, &rng),
 	};
 	defer for army in &armies {
@@ -31,8 +56,8 @@ main :: proc() {
 		fmt.printf("enter %d %s\n", len(army.combatents), army.name_plural);
 	}
 
-	win := sim_combat_1d(&armies, 0);
-	fmt.printf("The %s won!\n", win.name_plural);
+	win := sim_combat_1d(&armies, 0, &rng);
+	fmt.printf("\n=> The %s won!\n", win.name_plural);
 }
 
 Combatent :: struct($T: typeid) {
@@ -46,14 +71,21 @@ Army :: struct {
 	name: string,
 	name_plural: string,
 	combatents: []Army_Component,
+	weapons: []Weapon,
 
 	// the index of the currently fighting member
 	curr: int,
 }
 
+Weapon :: struct {
+	name: string,
+	attack_power: Min_Max(int),
+}
+
 Army_Statistics :: struct {
 	using c: Combatent(Min_Max(int)),
 	count: Min_Max(int),
+	weapons: []Weapon,
 }
 
 Min_Max :: struct($T: typeid) {
@@ -95,6 +127,7 @@ new_army :: proc(
 		name = name,
 		name_plural = name_plural,
 		combatents = combatents,
+		weapons = weapons,
 
 		// needs to call next
 		curr = -1,
@@ -116,7 +149,11 @@ next :: proc(army: ^Army) -> ^Army_Component {
 	return curr(army);
 }
 
-sim_combat_1d :: proc(armies: ^[]Army, starting_turn: int) -> ^Army {
+sim_combat_1d :: proc(
+	armies: ^[]Army,
+	starting_turn: int,
+	rng: ^rand.Rand,
+) -> ^Army {
 	{
 		l := len(armies);
 		assert(l == 2, fmt.tprintf("Expected two armies, but got %d", l));
@@ -133,7 +170,7 @@ sim_combat_1d :: proc(armies: ^[]Army, starting_turn: int) -> ^Army {
 	}
 
 	for {
-		curr_turn = combat_turn(armies, curr_turn);
+		curr_turn = combat_turn(armies, curr_turn, rng);
 
 		if winner := has_winner(armies); winner != nil {
 			return winner;
@@ -156,7 +193,11 @@ has_winner :: proc(armies: ^[]Army) -> ^Army {
 	return winner;
 }
 
-combat_turn :: proc(armies: ^[]Army, turn: int) -> (next_turn: int) {
+combat_turn :: proc(
+	armies: ^[]Army,
+	turn: int,
+	rng: ^rand.Rand,
+) -> (next_turn: int) {
 	next_turn = switch_turn(len(armies), turn);
 
 	curr_combatent := curr(&armies[turn]);
@@ -170,7 +211,13 @@ combat_turn :: proc(armies: ^[]Army, turn: int) -> (next_turn: int) {
 		if oponent == nil do continue;
 
 		// attack reports if a kill happened
-		if attack(curr_combatent, oponent) {
+		if attack(
+			curr_combatent,
+			oponent,
+			armies[turn].name,
+			armies[next_turn].name,
+			rng,
+		) {
 			next(&army); // may nil-ify this army
 		}
 	}
@@ -178,10 +225,36 @@ combat_turn :: proc(armies: ^[]Army, turn: int) -> (next_turn: int) {
 	return;
 }
 
-attack :: proc(attacker, blocker: ^Army_Component) -> bool {
-	blocker.health -= attacker.attack;
+attack :: proc(
+	attacker, blocker: ^Army_Component,
+	attacker_name, blocker_name: string,
+	rng: ^rand.Rand,
+) -> bool {
+	damage := int(rand.float32_range(
+		f32(0),
+		f32(attacker.attack),
+		rng,
+	));
+	blocker.health -= damage;
 
-	return blocker.health <= 0;
+	kill := blocker.health <= 0;
+
+	attacker_str := color(.Red, attacker_name);
+	defer delete(attacker_str);
+	blocker_str := color(.Blue, blocker_name);
+	defer delete(blocker_str);
+	kill_str := kill ? color(.Red, " It's a killing blow!") : "";
+	defer if kill_str != "" do delete(kill_str);
+
+	fmt.printf(
+		"The %s attacks the %s for %d damage!%s\n",
+		attacker_str,
+		blocker_str,
+		damage,
+		kill_str,
+	);
+
+	return kill;
 }
 
 switch_turn :: proc(num_armies: int, curr: int) -> int {
