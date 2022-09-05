@@ -1,5 +1,5 @@
 #!/usr/bin/env stack
--- stack script --resolver lts-13.26
+-- stack script --resolver lts-18.28
 
 {-
                               21: Amicable numbers
@@ -14,25 +14,35 @@ and 110; therefore d(220) = 284. The proper divisors of 284 are 1, 2, 4, 71 and
 
 Evaluate the sum of all the amicable numbers under 10000.
 
-Answer:
+Answer: 31626
 -}
+
+{-# LANGUAGE NumericUnderscores #-}
 
 module Main where
 
 main :: IO ()
 main = print
-  $ divisors 10 []
+  $ sum
+  $ map (\x ->
+     case x of
+       Nothing -> 0
+       Just a -> a)
+  $ map hasAmicable [1 .. 10_000]
 
 hasAmicable :: Int -> Maybe Int
-hasAmicable n = Nothing
+hasAmicable n =
+    if n == dnn && n /= dn then
+        Just dn
+    else
+        Nothing
 
-divisors :: Int            -- | The number
-         -> [Int]          -- | A list of known prime numbers
-         -> ([Int], [Int]) -- | Potentialli a new list of primes and the prime
-                           --   factors of n
-divisors n ps
-  | n `elem` ps = (ps, [1, n])
-  | n < last ps = undefined
+    where
+        dn  = divsum n
+        dnn = divsum dn
 
-primes :: [Int]
-primes = [1, 2, primes]
+        divsum :: Int -> Int
+        divsum = sum . divisors
+
+        divisors :: Int -> [Int]
+        divisors n = filter (\x -> n `mod` x == 0) [1 .. pred n]
