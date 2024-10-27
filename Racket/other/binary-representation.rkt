@@ -1,6 +1,9 @@
 #lang racket
 
-(require (only-in lazy take !! first rest))
+(require (prefix-in lazy: lazy))
+
+(module+ test
+  (require (prefix-in ru: rackunit)))
 
 #|
 An infinitely lazy list of powers of two.
@@ -11,10 +14,13 @@ An infinitely lazy list of powers of two.
                         (delay (aux (add1 n)))))])
     (aux 0)))
 
-#;(displayln (!! (take 10 powers-of-two)))
+(module+ test
+  (ru:check-equal? 1 (force (lazy:first powers-of-two)))
+  (ru:check-equal? 2 (force (lazy:second powers-of-two)))
 
-#;(displayln (force (first powers-of-two)))
-#;(displayln (rest powers-of-two))
+  (ru:check-equal?
+   '(1 2 4 8 16 32 64 128 256 512)
+   (lazy:!! (lazy:take 10 powers-of-two))))
 
 #|
 A generic function on lazy infinite lists. Returns a list containing the first n
@@ -25,13 +31,16 @@ Contract:
 |#
 (define (take-while prd lst)
   (define (aux prd lst acc)
-    (let ([el (force (first lst))])
+    (let ([el (force (lazy:first lst))])
       (if (not (prd el))
           acc
-          (aux prd (rest lst) (cons el acc)))))
+          (aux prd (lazy:rest lst) (cons el acc)))))
   (aux prd lst empty))
 
-#;(displayln (take-while (lambda (el) (< el 10)) powers-of-two))
+(module+ test
+  (ru:check-equal?
+   '(8 4 2 1)
+   (take-while (lambda (el) (< el 10)) powers-of-two)))
 
 #|
 Transform a number into a list of pairs, representing the binary form of that
@@ -54,9 +63,12 @@ Contract:
 
   (aux n (take-while (lambda (el) (<= el n)) powers-of-two) empty))
 
-#;(displayln (binary-repr 100))
+(module+ test
+  (ru:check-equal? 64 (car (first (binary-repr 100))))
 
-#;(displayln (car (first (binary-repr 100))))
+  (ru:check-equal?
+   '((64 . #t) (32 . #t) (16 . #f) (8 . #f) (4 . #t) (2 . #f) (1 . #f))
+   (binary-repr 100)))
 
 #|
 Transform the binary number into a string.
